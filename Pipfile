@@ -1,0 +1,28 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+flask = "*"
+sqlalchemy = "*"
+flask-sqlalchemy = "*"
+requests = "*"
+flask-security = "*"
+wtforms = "*"
+gunicorn = "*"
+whoosh = "*"
+werkzeug = "*"
+flask-wtf = "*"
+pytest = "*"
+requests-futures = "*"
+xmltodict = "*"
+pay-with-amazon = "*"
+paypalrestsdk = "*"
+zeep = "*"
+sqlalchemy-utils = "*"
+
+[requires]
+python_version = "3.7"

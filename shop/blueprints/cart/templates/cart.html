@@ -1,0 +1,62 @@
+{% extends "main.html" %}
+{% block body %}
+{% if not cart_session %}
+Nothing in Cart!
+{% else %}
+{% for item in cart_session.cart_items %}
+
+                    <tr id="{{ item.item_id }}_row">
+                        <td>{{ product.detail.displayed_title | safe }}</td>
+                                                <td width="50" class="tableunderline">&#x0024;{{ item.item_subtotal }}
+                        </td>
+                        <td width="30" align="right" class="table"><input type=text size=3
+                                                                                   name="{{ item.item_id }}_quantity"
+                                                                                   id="{{ item.item_id }}_quantity"
+                                                                                   value="{{ item.quantity }}">
+                        </td>
+                        <td><a id="{{ item.item_id }}_remove" href="http://www.thepurplestore.com">remove</a></td>
+                    <script>
+                        $(document).ready(function () {
+                            $('#{{ item.id }}_quantity').keyup(function () {
+                                if ($('#{{ item.id }}_quantity').val().length > 0) {
+                                    $.ajax({
+                                        data: JSON.stringify({
+                                            quantity: $("#{{ item.id }}_quantity").val(),
+                                            product_id: {{ item.product_id }}
+                                        }, null, "\t"),
+                                        type: 'POST',
+                                        contentType: "application/json;charset=UTF-8",
+                                        url: '{{ url_for('update_quantity') }}',
+                                        success: function (response) {
+                                            if (response.level_2) {
+                                                $('#shipping_normal').text('$' + response.shipping_normal.toFixed(2));
+                                                $('#shipping_express').text('$' + response.express.toFixed(2));
+                                                $('#{{ item.product_id }}_sub').text('$' + parseFloat(response.item_subtotal).toFixed(2));
+                                                $('#subtotal').text('$' + parseFloat(response.subtotal).toFixed(2));
+                                                $('#total').text('$' + parseFloat(response.total).toFixed(2));
+                                                if (response.message) {
+                                                    document.getElementById('{{ item.id }}_quantity').value = response.item_quantity;
+                                                }
+                                            }
+                                            if (response.message) {
+                                                alert(response.message)
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                            $(function () {
+                                $("#{{ item.id }}_remove").click(function (e) {
+                                    e.preventDefault();
+                                    $.post("{{ url_for('remove_item') }}", {item_id: "{{ item.id }}"}, function () {
+                                        $("#{{ item.id }}_row").remove();
+                                    });
+                                });
+                            });
+                        });
+
+                    </script>
+
+{% endfor %}
+{% endif %}
+{% endblock body %}
