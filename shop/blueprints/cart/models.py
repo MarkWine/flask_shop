@@ -1,11 +1,25 @@
 from dataclasses import dataclass
+from decimal import Decimal
 
-from flask import jsonify
+from flask import jsonify, session
 from sqlalchemy.exc import SQLAlchemyError
 
 from shop import db
-from .shipping import ShippingAddress
+from .shipping import (
+    ShippingAddress,
+    DestinationAddress,
+    ORIGIN_ADDRESS,
+    SHIPENGINE_GET_RATES,
+)
 from ..orders.models import OrderItem, Order
+
+SHIPPING_OPTIONS = {
+    "Standard": {
+        "services": {"FEDEX_GROUND", "USPS_FIRST_CLASS", "USPS_PRIORITY"},
+        "handling": 0,
+    },
+    "Express": {"services": {"USPS_FIRST_CLASS"}, "handling": 2.5},
+}
 
 
 class CartSession(db.Model):
@@ -16,7 +30,7 @@ class CartSession(db.Model):
     name = db.Column(db.String)
     company_name = db.Column(db.String)
     address_line1 = db.Column(db.String)
-    address2_line2 = db.Column(db.String)
+    address_line2 = db.Column(db.String)
     city = db.Column(db.String)
     state = db.Column(db.String)
     country = db.Column(db.String)
@@ -24,7 +38,7 @@ class CartSession(db.Model):
 
     @property
     def shipping_address(self):
-        shipping_address = ShippingAddress(
+        shipping_address = DestinationAddress(
             postal_code=self.ship_postal_code,
             name=self.ship_name,
             company_name=self.ship_company,
@@ -33,24 +47,36 @@ class CartSession(db.Model):
             city=self.ship_city,
             state=self.ship_state,
             country=self.ship_country,
+            origin_address=ORIGIN_ADDRESS or ShippingAddress("98101"),
         )
         return shipping_address
 
+    def get_shipping_rates(self):
+        all_carriers = set.union(
+            *[option["services"] for option in SHIPPING_OPTIONS.values()]
+        )
+        rates = {}
+        if SHIPENGINE_GET_RATES:
+            rates.update(self.shipping_address.get_shipengine())
+        if all_carriers & {"USPS_FIRST_CLASS", "USPS_PRIORITY"}:
+            rates.update(self.shipping_address.get_usps_domestic())
+        if all_carriers & {"FEDEX_GROUND"}:
+            rates.update(self.shipping_address.get_fedex_rates())
+        for option in SHIPPING_OPTIONS:
+            session["option"] = min(rates[SHIPPING_OPTIONS[option]])
+        pass
+
     @property
     def shipping_normal(self):
-        return 3
+        return Decimal("3.02")
 
     @property
     def shipping_expedited(self):
-        return 4
+        return Decimal("4.19")
 
     @property
     def shipping_cost(self):
-        return (
-            self.shipping_normal
-            if self.shipping_expedited == 0
-            else self.shipping_expedited
-        )
+        return self.shipping_expedited if self.selected == 1 else self.shipping_normal
 
     @property
     def subtotal(self):
@@ -63,20 +89,25 @@ class CartSession(db.Model):
     @property
     def json(self):
         json = {
-            "shipping_normal": self.shipping_normal,
-            "shipping_expedited": self.shipping_expedited,
-            "shipping_selected": self.shipping_selected,
-            "subtotal": self.subtotal,
-            "total": self.total,
+            "shipping_normal": str(self.shipping_normal),
+            "shipping_expedited": str(self.shipping_expedited),
+            "shipping_selected": str(self.shipping_selected),
+            "shipping_cost": str(self.shipping_cost),
+            "subtotal": str(self.subtotal),
+            "total": str(self.total),
         }
         return jsonify(json)
 
-    def convert_cart(self, payment):
-        order = Order(
-            payment_id=payment.id,
-            payment_type=payment.type,
-            **vars(self.shipping_address)
-        )
+    def convert_cart(self, payment, address=None):
+        """
+        Turn a cart into an order based on payment information
+        :param payment: Payment
+        :param address: ShippingAddress
+        :return:
+        """
+        if not address:
+            address = self.shipping_address
+        order = Order(payment_id=payment.id, payment_type=payment.type, address=address)
         db.session.add(order)
         order_items = []
         for item in self.cart_items:
@@ -96,13 +127,30 @@ class CartItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"))
     product_variant = db.Column(db.Integer, db.ForeignKey("product_variants.id"))
     quantity = db.Column(db.Integer)
-    item_subtotal = db.Column(db.Numeric(8, 2))
 
+    @property
+    def unit_price(self):
+        return self.product.price
+
+    @property
+    def subtotal(self):
+        return self.unit_price * Decimal(self.quantity)
+
+    product = db.relationship("Product")
     cart = db.relationship("CartSession", backref=db.backref("cart_items"))
 
 
-@dataclass
 class Payment:
+    def __init__(self, id, payment_type, payment_total, address=None):
+        self.id = id
+        self.payment_type = payment_type
+
+
+@dataclass
+class OrderPayment:
     id: str
-    type: str
+    payment_type: str
     payment_total: str
+    buyer_first: str
+    buyer_last: str
+    address: ShippingAddress

@@ -19,6 +19,17 @@ class Order(db.Model):
     ship_state = db.Column(db.String)
     ship_country = db.Column(db.String)
 
+    def __init__(self, address=None, **kwargs):
+        super(Order, self).__init__(**kwargs)
+        self.ship_postal_code = address.postal_code
+        self.ship_name = address.name
+        self.ship_company = address.company_name
+        self.ship_address = address.address_line1
+        self.ship_address2 = address.address_line2
+        self.ship_city = address.city
+        self.ship_state = address.state
+        self.ship_country = address.country
+
     @property
     def subtotal(self):
         return sum([item.item_subtotal for item in self.cart_items])

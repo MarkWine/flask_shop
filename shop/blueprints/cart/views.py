@@ -9,11 +9,15 @@ from flask import (
     request,
     session,
     url_for,
+    jsonify,
 )
+import paypalrestsdk
 
 from shop import db
 from .models import CartSession, CartItem
-from .amazon import client
+from .amazon import client, AMAZON_CLIENT_ID, MWS_ACCESS_KEY
+from .paypal import create_payment, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
+from .utils.example_products import make_example_cart
 from ..orders.models import Order
 
 cart_blueprint: Blueprint = Blueprint(
@@ -22,16 +26,21 @@ cart_blueprint: Blueprint = Blueprint(
 
 
 @cart_blueprint.route("/cart")
-def cart():
-    if 'session_id' not in session:
+def cart_page():
+    try:
+        cart_session = CartSession.query.get(session["session_id"])
+        if not cart_session:
+            raise TypeError
+    except (KeyError, TypeError):
         cart_session = CartSession()
         db.session.add(cart_session)
         db.session.commit()
-        session['session_id'] = cart_session.id
-    try:
-        cart_session = CartSession.query.get(session["session_id"])
-    except (KeyError, ValueError):
-        return render_template("error", message="Nothing in your cart yet!")
+        session["session_id"] = cart_session.id
+    if (
+        not cart_session.cart_items
+        and current_app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+    ):
+        make_example_cart(session["session_id"])
     return render_template("cart.html", cart_session=cart_session)
 
 
@@ -40,37 +49,84 @@ def checkout():
     return render_template("checkout.html")
 
 
-@cart_blueprint.route("/thankyou")
-def thankyou_page():
+@cart_blueprint.route("/thank_you")
+def thank_you_page():
     order = Order.query.get(request.args.get("order_id"))
-    return render_template("thankyou.html", order=order)
+    return render_template("thank_you.html", order=order)
 
 
-@cart_blueprint.route("/api/update_zipcode")
-def update_zipcode():
+@cart_blueprint.route("/api/update_postal_code", methods=["POST"])
+def update_postal_code():
     cart = CartSession.query.get(session["session_id"])
-    pass
+    cart.postal_code = request.json.get("postal_code")
+    db.session.commit()
+    return cart.json
 
 
-@cart_blueprint.route("/api/update_quantity")
+@cart_blueprint.route("/api/update_quantity", methods=["POST"])
 def update_quantity():
-    pass
+    item = CartItem.query.get(request.json.get("item_id")) or CartItem()
+    item.quantity = request.json.get("quantity")
+    db.session.commit()
+    cart = CartSession.query.get(session["session_id"])
+    return cart.json
 
 
-@cart_blueprint.route("/api/remove_item")
+@cart_blueprint.route("/api/remove_item", methods=["POST"])
 def remove_item():
     try:
         item = CartItem.query.get(request.json.get("item_id"))
-        item.delete()
+        db.session.delete(item)
         db.session.commit()
     except KeyError:
         return {"Item already deleted"}
+    cart = CartSession.query.get(session["session_id"])
+    return cart.json
 
-    pass
+
+@cart_blueprint.route("/api/create_paypal_payment", methods=["GET", "POST"])
+def create_paypal_payment():
+    payment = create_payment()
+    if payment.create():
+        return jsonify(payment.to_dict())
+    else:
+        return payment.error
+
+
+@cart_blueprint.route("/api/execute_paypal_payment", methods=["POST"])
+def execute_paypal_payment():
+    payment = paypalrestsdk.Payment.find(request.form["paymentID"])
+    if payment.execute({"payer_id": payment["payer"]["payer_info"]["payer_id"]}):
+        address = payment["transactions"][0]["item_list"]["shipping_address"]
+        buyer = payment["payer"]["payer_info"]
+        money = payment["transactions"][0]["amount"]
+        transaction_id = payment["transactions"][0]["related_resources"][0]["sale"][
+            "id"
+        ]
+        cart_session = CartSession.query.get(session["session_id"])
+        cart_session.convert_order(
+            transaction_id,
+            order_source="PayPal",
+            shipping_service_level=4,
+            buyer_first_name=buyer["first_name"],
+            buyer_last_name=buyer["last_name"],
+            ship_to_address_street=address["line1"],
+            ship_to_address_city=address["city"],
+            ship_to_address_state=address["state"],
+            ship_to_address_zip=address["postal_code"],
+            order_notice_total=money["total"],
+        )
+    else:
+        return payment.error
+    return jsonify(dict(redirect=url_for("cart.thank_you", order_id=transaction_id)))
 
 
 @cart_blueprint.route("/api/amazon/get_details/", methods=["POST"])
 def get_amazon_details():
+    """
+    Sets up Amazon payment. Make sure credentials are good and that site host is approved in the amazon account
+    :return: jsonified PayWithAmazon client response
+    """
     session["orderReferenceId"] = request.form["orderReferenceId"]
     response = client.get_order_reference_details(
         amazon_order_reference_id=session["orderReferenceId"],
@@ -118,7 +174,7 @@ def confirm_amazon_order():
         ship_state=address["StateOrRegion"],
         ship_postal_code=address["PostalCode"],
         ship_country=address.get("CountryCode"),
-        order__total=confirm_result["OrderTotal"]["Amount"],
+        order_total=confirm_result["OrderTotal"]["Amount"],
     )
     order = Order.query.filter(Order.cart_id == session["session_id"])
     auth_response = client.authorize(
@@ -130,4 +186,46 @@ def confirm_amazon_order():
         capture_now=True,
     )
     current_app.logger.info(f"Amazon Authorization Response: {str(auth_response)}")
-    return redirect(url_for("thank_you", order=order.id), code=307)
+    return redirect(url_for("cart.thank_you", order=order.id), code=307)
+
+
+@cart_blueprint.route("/api/execute_payment", methods=["POST"])
+def execute_payment():
+    payment = paypalrestsdk.Payment.find(request.form["paymentID"])
+    transaction_id = None
+    if payment.execute({"payer_id": payment["payer"]["payer_info"]["payer_id"]}):
+        address = payment["transactions"][0]["item_list"]["shipping_address"]
+        buyer = payment["payer"]["payer_info"]
+        money = payment["transactions"][0]["amount"]
+        transaction_id = payment["transactions"][0]["related_resources"][0]["sale"][
+            "id"
+        ]
+        cart_session = CartSession.query.get(session["session_id"])
+        cart_session.convert_order(
+            transaction_id,
+            order_source="PayPal",
+            shipping_service_level=4,
+            buyer_first_name=buyer["first_name"],
+            buyer_last_name=buyer["last_name"],
+            ship_to_address_street=address["line1"],
+            ship_to_address_city=address["city"],
+            ship_to_address_state=address["state"],
+            ship_to_address_zip=address["postal_code"],
+            order_notice_total=money["total"],
+        )
+    else:
+        return "error"
+    return jsonify(
+        dict(redirect=url_for("cart.thank_you", order_number_external=transaction_id))
+    )
+
+
+@cart_blueprint.route("/clearsession")
+def clear_session():
+    session.clear()
+    return redirect("/")
+
+
+@cart_blueprint.context_processor
+def cart_credentials():
+    return {"MWS_ACCESS_KEY": MWS_ACCESS_KEY, "AMAZON_CLIENT_ID": AMAZON_CLIENT_ID}

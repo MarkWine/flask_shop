@@ -4,22 +4,31 @@ from flask import url_for, session
 import paypalrestsdk
 
 PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "sandbox")
-CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET")
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET")
 
 paypalrestsdk.configure(
-    {"mode": PAYPAL_MODE, "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}
+    {
+        "mode": PAYPAL_MODE,
+        "client_id": PAYPAL_CLIENT_ID,
+        "client_secret": PAYPAL_CLIENT_SECRET,
+    }
 )
 
 
 def create_payment(cart):
+    """
+    Create a Paypal payment based on cart data
+    :param cart: CartSession
+    :return: paypalrestsdk.Payment
+    """
     payment = paypalrestsdk.Payment(
         {
             "intent": "sale",
             "payer": {"payment_method": "paypal"},
             "redirect_urls": {
-                "return_url": url_for("thank_you"),
-                "cancel_url": url_for("shopping_cart"),
+                "return_url": url_for("thank_you_page"),
+                "cancel_url": url_for("cart_page"),
             },
             "transactions": [
                 {
@@ -29,3 +38,4 @@ def create_payment(cart):
             ],
         }
     )
+    return payment

@@ -1,5 +1,5 @@
 import os
 
-SQLALCHEMY_DATABASE_URI = os.environ.get("SHOP_DB_URI") or ''
+SQLALCHEMY_DATABASE_URI = os.environ.get("SHOP_DB_URI") or ""
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECRET_KEY = "howdy"

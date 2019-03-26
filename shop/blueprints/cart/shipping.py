@@ -16,6 +16,7 @@ USPS_PASS = os.environ.get("USPS_PASS")
 USPS_PRODUCTION_URL = "http://production.shippingapis.com/ShippingAPI.dll"
 USPS_SECURE_URL = "https://secure.shippingapis.com/ShippingAPI.dll"
 SHIPENGINE_KEY = os.environ.get("SHIPENGINE_KEY")
+SHIPENGINE_GET_RATES = os.environ.get("SHIPENGINE_GET_RATES", False)
 ENDICIA_ID = os.environ.get("ENDICIA_KEY")
 FEDEX_ID = os.environ.get("FEDEX_ID")
 FEDEX_KEY = os.environ.get("FEDEX_KEY")
@@ -41,10 +42,13 @@ class ShippingAddress:
     country: str = "US"
 
 
-default_origin = ShippingAddress(ORIGIN_ADDRESS or 98101)
+default_origin = ShippingAddress(ORIGIN_ADDRESS or "98101")
 
 
+@dataclass
 class DestinationAddress(ShippingAddress):
+    origin_address: ShippingAddress = ShippingAddress("98101")
+
     def get_shipengine(self, origin_address=default_origin, weight: int = 1):
         """
         Get rates from shipengine. Because of potential fees, this is avoided unless explicitly invoked
