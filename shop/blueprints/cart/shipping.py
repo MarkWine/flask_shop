@@ -190,18 +190,21 @@ class DestinationAddress(ShippingAddress):
             },
             "PackageCount": 1,
         }
-        rate_request = fedex_client.service.getRates(
-            WebAuthenticationDetail=WebAuthenticationDetail,
-            ClientDetail=ClientDetail,
-            Version=Version,
-            RequestedShipment=requested_shipment,
-        )
-        ground_rate = [
-            reply
-            for reply in rate_request["RateReplyDetails"]
-            if reply["ServiceType"] == "FEDEX_GROUND"
-        ]
-        ground_rate_value = ground_rate[0]["RatedShipmentDetails"][0][
-            "ShipmentRateDetail"
-        ]["TotalNetFedExCharge"]["Amount"]
+        try:
+            rate_request = fedex_client.service.getRates(
+                WebAuthenticationDetail=WebAuthenticationDetail,
+                ClientDetail=ClientDetail,
+                Version=Version,
+                RequestedShipment=requested_shipment,
+            )
+            ground_rate = [
+                reply
+                for reply in rate_request["RateReplyDetails"]
+                if reply["ServiceType"] == "FEDEX_GROUND"
+            ]
+            ground_rate_value = ground_rate[0]["RatedShipmentDetails"][0][
+                "ShipmentRateDetail"
+            ]["TotalNetFedExCharge"]["Amount"]
+        except zeep.exceptions.ValidationError:
+            ground_rate_value = None
         return {"FEDEX_GROUND": ground_rate_value}
