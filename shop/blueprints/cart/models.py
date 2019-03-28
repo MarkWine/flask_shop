@@ -45,7 +45,7 @@ class CartSession(db.Model):
     cart_created = db.Column(db.DateTime)
 
     def __init__(self):
-        self.shipping_selected = 'Standard'
+        self.shipping_selected = "Standard"
         self.cart_created = datetime.now()
 
     @property
@@ -110,14 +110,14 @@ class CartSession(db.Model):
         except KeyError:
             current_app.logger.info(f"no session rates: {str(session)}")
             rates = {
-                {k: v["default"] + v["handling"] for k, v in SHIPPING_OPTIONS.items()}
+                k: v["default"] + v["handling"] for k, v in SHIPPING_OPTIONS.items()
             }
         current_app.logger.info(f"rates: {str(rates)}")
         return rates
 
     @property
     def shipping_cost(self):
-        return self.shipping_rates[self.shipping_selected or 'Standard']
+        return self.shipping_rates[self.shipping_selected or "Standard"]
 
     @property
     def subtotal(self):
