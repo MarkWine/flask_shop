@@ -1,5 +1,7 @@
-from pay_with_amazon.client import PayWithAmazonClient
 import os
+
+from pay_with_amazon.client import PayWithAmazonClient
+
 
 MWS_ACCESS_KEY = os.environ.get("MWS_ACCESS_KEY", "")
 MWS_SECRET_KEY = os.environ.get("MWS_SECRET_KEY", "")

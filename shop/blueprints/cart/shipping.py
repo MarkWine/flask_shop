@@ -5,7 +5,8 @@ from xml.etree import ElementTree as ET
 
 from flask import current_app
 import requests
-from requests_futures.sessions import FuturesSession  # if using async requests
+
+# from requests_futures.sessions import FuturesSession  # if using async requests
 import xmltodict
 import zeep
 
@@ -91,15 +92,18 @@ class DestinationAddress(ShippingAddress):
         ]
         return rate_values
 
-    def request_usps_domestic(self, origin_address=default_origin, weight: int = 1):
+    def request_usps_domestic(self, weight, origin_address=default_origin):
         """
         Structure and send request for USPS rates
         :param weight: in oz
         :type origin_address: 'ShippingAddress'
         :return: Ordered Dict of services and rates
         """
+        print(self.postal_code)
+        print(weight)
+        print(origin_address.postal_code)
         request_xml = ET.Element("RateV4Request")
-        request_xml.attrib = {"USERID": USPS_USER_ID}
+        request_xml.attrib = {"USERID": str(USPS_USER_ID)}
 
         ET.SubElement(request_xml, "Revision").text = "2"
 
@@ -109,28 +113,30 @@ class DestinationAddress(ShippingAddress):
         ET.SubElement(package_xml, "Service").text = "ALL"
         ET.SubElement(package_xml, "FirstClassMailType").text = "ALL"
         ET.SubElement(package_xml, "ZipOrigination").text = str(
-            origin_address.postal_code
+            origin_address.postal_code or "98101"
         )
-        ET.SubElement(package_xml, "ZipDestination").text = str(self.postal_code)
+        ET.SubElement(package_xml, "ZipDestination").text = str(
+            self.postal_code or "66606"
+        )
         ET.SubElement(package_xml, "Pounds").text = "0"
         ET.SubElement(package_xml, "Ounces").text = str(weight)
         ET.SubElement(package_xml, "Container")
         ET.SubElement(package_xml, "Size").text = "Regular"
         ET.SubElement(package_xml, "Machinable").text = "true"
-
         data_xml = {"API": "RateV4", "XML": ET.tostring(request_xml, "unicode")}
+
         results = requests.post(url=USPS_PRODUCTION_URL, data=data_xml)
         return results
 
-    def get_usps_domestic(self):
+    def get_usps_domestic(self, weight: int = 1):
         """
-        Take full result from usps api call and output data in line with needs
+        Take result from usps api call and output rate data as dict
         :return:
         """
         try:
-            parsed_results = xmltodict.parse(self.request_usps_domestic().content)[
-                "RateV4Response"
-            ]["Package"]["Postage"]
+            parsed_results = xmltodict.parse(
+                self.request_usps_domestic(weight).content
+            )["RateV4Response"]["Package"]["Postage"]
             priority = next(
                 (
                     Decimal(service["Rate"])
@@ -139,19 +145,19 @@ class DestinationAddress(ShippingAddress):
                 ),
                 None,
             )
-            priority = Decimal(priority) if priority else None
             first_class = next(
                 (
                     Decimal(service["Rate"])
                     for service in parsed_results
                     if service["MailService"]
-                    == "First-Class Package Service - Retail&lt;sup&gt;&#8482;&lt;/sup&gt;"
+                    == "First-Class Package Service - Retail&lt;sup&gt;&#8482;&lt;/sup&gt;"  # Get Better Identifiers
                 ),
                 None,
             )
+            rates = {"USPS_PRIORITY": priority, "USPS_FIRST_CLASS": first_class}
         except KeyError:
-            priority, first_class = None, None
-        return priority, first_class
+            rates = {{"USPS_PRIORITY": None, "USPS_FIRST_CLASS": None}}
+        return rates
 
     def get_fedex_rates(self, origin_address=default_origin, weight=1.0):
         """
@@ -173,15 +179,16 @@ class DestinationAddress(ShippingAddress):
             },
             "Recipient": {
                 "Address": {
-                    "PostalCode": self.postal_code,
-                    "CountryCode": self.country,
-                    "StateOrProvinceCode": self.state,
+                    "PostalCode": self.postal_code or 32703,
+                    "CountryCode": self.country or "US",
+                    # "StateOrProvinceCode": self.state or "FL",
                 }
             },
             "RequestedPackageLineItems": {
                 "Weight": {"Units": "LB", "Value": weight},
                 "GroupPackageCount": 1,
             },
+            "PackageCount": 1,
         }
         rate_request = fedex_client.service.getRates(
             WebAuthenticationDetail=WebAuthenticationDetail,
@@ -197,4 +204,4 @@ class DestinationAddress(ShippingAddress):
         ground_rate_value = ground_rate[0]["RatedShipmentDetails"][0][
             "ShipmentRateDetail"
         ]["TotalNetFedExCharge"]["Amount"]
-        return ground_rate_value
+        return {"FEDEX_GROUND": ground_rate_value}

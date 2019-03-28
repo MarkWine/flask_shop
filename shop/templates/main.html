@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+{% block head %}
 <head>
 
   <!-- Basic Page Needs
@@ -28,7 +29,7 @@
   <!-- Favicon
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
-
+{% endblock head %}
 </head>
 <body>
 <div class="container">
@@ -49,7 +50,7 @@
             About
         </div>
     </div>
-</div>
+
 {% block body %}
 
   <!-- Primary Page Layout
@@ -64,6 +65,6 @@
     </div>
 
 {% endblock body %}
-
+</div>
 </body>
 </html>

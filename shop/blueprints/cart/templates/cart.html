@@ -1,10 +1,22 @@
 {% extends "main.html" %}
+{% block head %}
+{{ super() }}
+<script type="text/javascript">
+    window.onAmazonLoginReady = function () {
+        amazon.Login.setClientId("{{ AMAZON_CLIENT_ID }}");
+    };
+    window.onAmazonPaymentsReady = function() {
+            showButton();
+    };
+</script>
+<script async="async" src="https://static-na.payments-amazon.com/OffAmazonPayments/us/sandbox/js/Widgets.js"></script>
+{% endblock head %}
 {% block body %}
 {% if not cart_session %}
-Nothing in Cart!
+    Nothing in Cart!
 {% else %}
 <table class="u-full-width">
-<th>Products in Cart</th>
+<thead>Products in Cart</thead>
 {% for item in cart_session.cart_items %}
 
     <tr id="{{ item.item_id }}_row">
@@ -31,8 +43,9 @@ Nothing in Cart!
                         url: "{{ url_for('cart.update_quantity') }}",
                         success: function (response) {
                             if (response.subtotal) {
-                                $("#shipping_normal").text("$" + parseFloat(response.shipping_normal).toFixed(2));
-                                $("#shipping_express").text("$" + parseFloat(response.express).toFixed(2));
+                                {% for option in SHIPPING_OPTIONS %}
+                                    $("#shipping_{{ option }}").text(parseFloat(response.option).toFixed(2));
+                                {% endfor %}
                                 $("#{{ item.product_id }}_sub").text("$" + parseFloat(response.item_subtotal).toFixed(2));
                                 $("#subtotal").text("$" + parseFloat(response.subtotal).toFixed(2));
                                 $("#total").text("$" + parseFloat(response.total).toFixed(2));
@@ -50,14 +63,41 @@ Nothing in Cart!
 {% endfor %}
 </table>
 
-<div class="row">Subtotal:<span id="subtotal">${{ cart_session.subtotal }}</span></div>
-<div class="row">Shipping:<span id="shipping">${{ cart_session.shipping_cost }}</span></div>
-<div class="row">Total:<span id="total">${{ cart_session.total }}</span></div>
-    {% if not cart_session.postal_code %}
+<div class="row">Subtotal: <span id="subtotal">${{ cart_session.subtotal }}</span></div>
+Shipping Options
+{% for option in SHIPPING_OPTIONS %}
 <div class="row">
-The current shipping value is an estimate. Please enter your zip code for a more accurate shipping cost.
+    <label class="{{ option }}"><input type="radio" name="shipping_select" value="{{ option }}">
+        <span class="label-body">{{ option }} $<span id="shipping_{{ option }}">
+        {{ session.get(option, 'Unavailable') }}</span></span></label>
 </div>
-    {% endif %}
+{% endfor %}
+<script>
+$(document).ready(function (){
+    $("input[type=radio][name=shipping_select]").change(function() {
+    console.log('Hi, Im changing shipping');
+        $.ajax({
+            data: JSON.stringify({shipping_select: $("input[name='shipping_select']:checked").val()}),
+            type: "POST",
+            contentType: "application/json;charset=UTF-8",
+            url: "{{ url_for('cart.update_shipping_selection') }}",
+            success: function(response){
+                $("#shipping").text("$" + parseFloat(response.shipping_cost).toFixed(2));
+                $("#total").text("$" + parseFloat(response.total).toFixed(2));
+            }
+
+        });
+    });
+
+});
+</script>
+<div class="row">Shipping: <span id="shipping">${{ cart_session.shipping_cost | round(2) }}</span></div>
+<div class="row">Total: <span id="total">${{ cart_session.total | round(2) }}</span></div>
+{% if not cart_session.postal_code %}
+    <div class="row">
+    The current shipping value is an estimate. Please enter your zip code for a more accurate shipping cost.
+    </div>
+{% endif %}
 <script>
 function update_zip() {
     $.ajax({
@@ -76,9 +116,9 @@ function update_zip() {
     });
 }
 </script>
- <div class="row">
-   <input type="text" size="6" name="postal_code" id="postal_input">
-<button onclick="update_zip()">Update Postal Code</button>
+<div class="row">
+    <input type="text" size="6" name="postal_code" id="postal_input">
+    <button onclick="update_zip()">Update Postal Code</button>
 </div>
 
 <div id="AmazonLoginButton"></div>
@@ -105,58 +145,38 @@ function cart_remove(item_id) {
 </script>
 
 <div id="paypal-button"></div>
-    <script src="https://www.paypalobjects.com/api/checkout.js"></script>
+<script src="https://www.paypalobjects.com/api/checkout.js"></script>
 
-    <script>
-
-        paypal.Button.render({
-
-            env: "sandbox", // Or "production",
-
-            payment: function (data, actions) {
-                return paypal.request.post("{{ url_for('cart.create_paypal_payment') }}").then(function (res) {
-                    return res.id;
-                });
-            },
-
-            onAuthorize: function (data, actions) {
-                console.log(data["paymentID"]);
-                return paypal.request.post("{{ url_for('cart.execute_paypal_payment') }}", data).then(function (res) {
-                    console.log("return");
-                    return window.location.replace(res.redirect);
-
-                });
-            }
-
-        }, "#paypal-button");
-
-
-    </script>
-
-    <script type="text/javascript">
-        window.onAmazonLoginReady = function () {
-            amazon.Login.setClientId("{{ AMAZON_CLIENT_ID }}");
-        };
-
-
-    </script>
-    <script type="text/javascript"
-            src="https://static-na.payments-amazon.com/OffAmazonPayments/us/sandbox/js/Widgets.js"></script>
-    <script type="text/javascript">
-        var authRequest;
-        OffAmazonPayments.Button("AmazonLoginButton", "{{ MWS_ACCESS_KEY }}", {
-            type: "LwA",
-            color: "Gold",
-            authorization: function () {
-                loginOptions = {scope: "profile postal_code payments:widget payments:shipping_address", popup: true};
-                authRequest = amazon.Login.authorize(loginOptions, "/amzncheckout");
-            },
-            onError: function (error) {
-                // something bad happened
-            }
+<script>
+paypal.Button.render({
+    env: "sandbox", // "production",
+    payment: function (data, actions) {
+        return paypal.request.post("{{ url_for('cart.create_paypal_payment') }}").then(function (res) {
+            return res.id;
         });
+    },
+    onAuthorize: function (data, actions) {
+        return paypal.request.post("{{ url_for('cart.execute_paypal_payment') }}", data).then(function (res) {
+            return window.location.replace(res.redirect);
+        });
+    }
+
+}, "#paypal-button");
+</script>
 
 
-    </script>
+<script type="text/javascript">
+function showButton() {
+var authRequest;
+    OffAmazonPayments.Button("AmazonLoginButton", "{{ MWS_ACCESS_KEY }}", {
+        type: "LwA",
+        color: "Gold",
+        authorization: function () {
+            loginOptions = {scope: "profile postal_code payments:widget payments:shipping_address", popup: true};
+            authRequest = amazon.Login.authorize(loginOptions, "/amzncheckout");
+        }
+    });
+}
+</script>
 {% endif %}
 {% endblock body %}

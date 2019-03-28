@@ -14,7 +14,7 @@ from flask import (
 import paypalrestsdk
 
 from shop import db
-from .models import CartSession, CartItem
+from .models import CartSession, CartItem, SHIPPING_OPTIONS
 from .amazon import client, AMAZON_CLIENT_ID, MWS_ACCESS_KEY
 from .paypal import create_payment, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
 from .utils.example_products import make_example_cart
@@ -59,6 +59,15 @@ def thank_you_page():
 def update_postal_code():
     cart = CartSession.query.get(session["session_id"])
     cart.postal_code = request.json.get("postal_code")
+    session["rates_updated"] = False
+    db.session.commit()
+    return cart.json
+
+
+@cart_blueprint.route("/api/shipping_select", methods=["POST"])
+def update_shipping_selection():
+    cart = CartSession.query.get(session["session_id"])
+    cart.shipping_selected = request.json.get("shipping_select")
     db.session.commit()
     return cart.json
 
@@ -69,6 +78,7 @@ def update_quantity():
     item.quantity = request.json.get("quantity")
     db.session.commit()
     cart = CartSession.query.get(session["session_id"])
+    session["rates_updated"] = False
     return cart.json
 
 
@@ -81,12 +91,14 @@ def remove_item():
     except KeyError:
         return {"Item already deleted"}
     cart = CartSession.query.get(session["session_id"])
+    session["rates_updated"] = False
     return cart.json
 
 
 @cart_blueprint.route("/api/create_paypal_payment", methods=["GET", "POST"])
 def create_paypal_payment():
-    payment = create_payment()
+    cart = CartSession.query.get(session["session_id"])
+    payment = create_payment(cart)
     if payment.create():
         return jsonify(payment.to_dict())
     else:
@@ -114,7 +126,7 @@ def execute_paypal_payment():
             ship_to_address_city=address["city"],
             ship_to_address_state=address["state"],
             ship_to_address_zip=address["postal_code"],
-            order_notice_total=money["total"],
+            payment_total=money["total"],
         )
     else:
         return payment.error
@@ -155,28 +167,7 @@ def confirm_amazon_order():
         amazon_order_reference_id=order_reference_id,
         address_consent_token=session["access_token"],
     )
-    try:
-        confirm_result = json.loads(order_response.to_json())[
-            "GetOrderReferenceDetailsResponse"
-        ]["GetOrderReferenceDetailsResult"]["OrderReferenceDetails"]
-    except KeyError:
-        return "Order Not Confirmed by Amazon"
-    address = confirm_result["Destination"]["PhysicalDestination"]
-    cart_session.convert_order(
-        confirm_result.get("AmazonOrderReferenceId"),
-        payment_type="PayWithAmazon",
-        shipping_service_level="None",
-        buyer_first_name=confirm_result["Buyer"]["Name"],
-        buyer_last_name=confirm_result["Buyer"]["Name"],
-        ship_address_=address["AddressLine1"],
-        ship_address2=address.get("AddressLine2", ""),
-        ship_city=address["City"],
-        ship_state=address["StateOrRegion"],
-        ship_postal_code=address["PostalCode"],
-        ship_country=address.get("CountryCode"),
-        order_total=confirm_result["OrderTotal"]["Amount"],
-    )
-    order = Order.query.filter(Order.cart_id == session["session_id"])
+    order = cart_session.convert_amazon_order(order_response)
     auth_response = client.authorize(
         amazon_order_reference_id=order_reference_id,
         authorization_reference_id="AMZ" + str(order.id),
@@ -192,7 +183,6 @@ def confirm_amazon_order():
 @cart_blueprint.route("/api/execute_payment", methods=["POST"])
 def execute_payment():
     payment = paypalrestsdk.Payment.find(request.form["paymentID"])
-    transaction_id = None
     if payment.execute({"payer_id": payment["payer"]["payer_info"]["payer_id"]}):
         address = payment["transactions"][0]["item_list"]["shipping_address"]
         buyer = payment["payer"]["payer_info"]
@@ -214,7 +204,7 @@ def execute_payment():
             order_notice_total=money["total"],
         )
     else:
-        return "error"
+        return payment.error
     return jsonify(
         dict(redirect=url_for("cart.thank_you", order_number_external=transaction_id))
     )
@@ -228,4 +218,8 @@ def clear_session():
 
 @cart_blueprint.context_processor
 def cart_credentials():
-    return {"MWS_ACCESS_KEY": MWS_ACCESS_KEY, "AMAZON_CLIENT_ID": AMAZON_CLIENT_ID}
+    return {
+        "MWS_ACCESS_KEY": MWS_ACCESS_KEY,
+        "AMAZON_CLIENT_ID": AMAZON_CLIENT_ID,
+        "SHIPPING_OPTIONS": SHIPPING_OPTIONS,
+    }
