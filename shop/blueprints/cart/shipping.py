@@ -156,7 +156,7 @@ class DestinationAddress(ShippingAddress):
             )
             rates = {"USPS_PRIORITY": priority, "USPS_FIRST_CLASS": first_class}
         except KeyError:
-            rates = {{"USPS_PRIORITY": None, "USPS_FIRST_CLASS": None}}
+            rates = {"USPS_PRIORITY": None, "USPS_FIRST_CLASS": None}
         return rates
 
     def get_fedex_rates(self, origin_address=default_origin, weight=1.0):
