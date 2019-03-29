@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import SQLAlchemySessionUserDatastore, Security
@@ -7,8 +9,6 @@ from sqlalchemy_utils import database_exists, create_database
 app = Flask(__name__, instance_relative_config=True)
 app.config.from_pyfile("config.py", silent=True)
 
-if not app.config.get("SQLALCHEMY_DATABASE_URI"):
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 if not database_exists(app.config.get("SQLALCHEMY_DATABASE_URI")):
     create_database(app.config.get("SQLALCHEMY_DATABASE_URI"))
 db = SQLAlchemy(app)
