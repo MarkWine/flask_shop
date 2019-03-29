@@ -136,7 +136,7 @@ class CartSession(db.Model):
             "total": str(self.total),
         }
         for option in SHIPPING_OPTIONS:
-            cart_json[option] = self.shipping_rates[option]
+            cart_json[option] = str(self.shipping_rates[option])
         return jsonify(cart_json)
 
     def convert_cart(self, payment, address=None):

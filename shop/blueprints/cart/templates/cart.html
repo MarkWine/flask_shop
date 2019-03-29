@@ -33,21 +33,23 @@
         $(document).ready(function () {
             $("#{{ item.id }}_quantity").keyup(function () {
                 if ($("#{{ item.id }}_quantity").val().length > 0) {
+                    // Change subtotal before dealing with shipping
                     $.ajax({
                         data: JSON.stringify({
                             quantity: $("#{{ item.id }}_quantity").val(),
                             item_id: {{ item.id }}
-                        }, null, "\t"),
+                        }),
                         type: "POST",
                         contentType: "application/json;charset=UTF-8",
                         url: "{{ url_for('cart.update_quantity') }}",
                         success: function (response) {
                             if (response.subtotal) {
                                 {% for option in SHIPPING_OPTIONS %}
-                                    $("#shipping_{{ option }}").text(parseFloat(response.option).toFixed(2));
+                                    $("#shipping_{{ option }}").text(parseFloat(response.{{ option }}).toFixed(2));
                                 {% endfor %}
                                 $("#{{ item.product_id }}_sub").text("$" + parseFloat(response.item_subtotal).toFixed(2));
                                 $("#subtotal").text("$" + parseFloat(response.subtotal).toFixed(2));
+                                $("#shipping").text("$" + parseFloat(response.shipping_cost).toFixed(2));
                                 $("#total").text("$" + parseFloat(response.total).toFixed(2));
                                 if (response.message) {
                                     document.getElementById("{{ item.id }}_quantity").value = response.item_quantity;
@@ -67,15 +69,19 @@
 Shipping Options
 {% for option in SHIPPING_OPTIONS %}
 <div class="row">
-    <label class="{{ option }}"><input type="radio" name="shipping_select" value="{{ option }}">
+    <label class="{{ option }}"><input type="radio" id="{{ option }}_radio" name="shipping_select" value="{{ option }}">
         <span class="label-body">{{ option }} $<span id="shipping_{{ option }}">
-        {{ session.get(option, 'Unavailable') }}</span></span></label>
+        </span></span></label>
 </div>
 {% endfor %}
+
+{% if 'Standard' in SHIPPING_OPTIONS %}
+<script>
+$('#Standard_radio').prop('checked', true);</script>
+{% endif %}
 <script>
 $(document).ready(function (){
     $("input[type=radio][name=shipping_select]").change(function() {
-    console.log('Hi, Im changing shipping');
         $.ajax({
             data: JSON.stringify({shipping_select: $("input[name='shipping_select']:checked").val()}),
             type: "POST",
@@ -90,8 +96,24 @@ $(document).ready(function (){
     });
 
 });
+$(window).on('load', function (){
+    console.log('loaded');
+    $.ajax({
+        type: "POST",
+        url: "{{ url_for('cart.initial_shipping') }}",
+        success: function(response){
+            {% for option in SHIPPING_OPTIONS %}
+                $("#shipping_{{ option }}").text(parseFloat(response.{{ option }}).toFixed(2));
+            {% endfor %}
+            $("#shipping").text("$" + parseFloat(response.shipping_cost).toFixed(2));
+            $("#total").text("$" + parseFloat(response.total).toFixed(2));
+        }
+
+    });
+});
 </script>
-<div class="row">Shipping: <span id="shipping">${{ cart_session.shipping_cost | round(2) }}</span></div>
+<div class="row">Shipping: <span id="shipping">0</span></div>
+<script>$('#shipping').text('$' + {{ cart_session.shipping_cost | round(2) }});</script>
 <div class="row">Total: <span id="total">${{ cart_session.total | round(2) }}</span></div>
 {% if not cart_session.postal_code %}
     <div class="row">
@@ -107,6 +129,9 @@ function update_zip() {
         url: "{{ url_for('cart.update_postal_code') }}",
         success: function(response){
             if (response.shipping_cost) {
+                {% for option in SHIPPING_OPTIONS %}
+                    $("#shipping_{{ option }}").text(parseFloat(response.{{ option }}).toFixed(2));
+                {% endfor %}
                 $("#shipping").text("$" + parseFloat(response.shipping_cost).toFixed(2));
                 $("#total").text("$" + parseFloat(response.total).toFixed(2));
                 if (response.message) {
@@ -132,6 +157,9 @@ function cart_remove(item_id) {
         url: "{{ url_for('cart.remove_item') }}",
         success: function (response) {
             if (response.subtotal) {
+                {% for option in SHIPPING_OPTIONS %}
+                    $("#shipping_{{ option }}").text(parseFloat(response.{{ option }}).toFixed(2));
+                {% endfor %}
                 $("#subtotal").text("$" + parseFloat(response.subtotal).toFixed(2));
                 $("#shipping").text("$" + parseFloat(response.shipping_cost).toFixed(2));
                 $("#total").text("$" + parseFloat(response.total).toFixed(2));

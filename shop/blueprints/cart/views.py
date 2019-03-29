@@ -72,6 +72,12 @@ def update_shipping_selection():
     return cart.json
 
 
+@cart_blueprint.route("/api/init_shipping", methods=["POST"])
+def initial_shipping():
+    cart = CartSession.query.get(session["session_id"])
+    return cart.json
+
+
 @cart_blueprint.route("/api/update_quantity", methods=["POST"])
 def update_quantity():
     item = CartItem.query.get(request.json.get("item_id")) or CartItem()
