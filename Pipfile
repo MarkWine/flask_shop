@@ -24,6 +24,7 @@ paypalrestsdk = "*"
 zeep = "*"
 sqlalchemy-utils = "*"
 simplejson = "*"
+psycopg2-binary = "*"
 
 [requires]
 python_version = "3.7"
