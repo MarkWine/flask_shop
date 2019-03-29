@@ -41,7 +41,7 @@ class CartSession(db.Model):
     city = db.Column(db.String)
     state = db.Column(db.String)
     country = db.Column(db.String)
-    shipping_selected = db.Column(db.Integer)
+    shipping_selected = db.Column(db.String)
     cart_created = db.Column(db.DateTime)
 
     def __init__(self):
