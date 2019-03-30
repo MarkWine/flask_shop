@@ -205,6 +205,6 @@ class DestinationAddress(ShippingAddress):
             ground_rate_value = ground_rate[0]["RatedShipmentDetails"][0][
                 "ShipmentRateDetail"
             ]["TotalNetFedExCharge"]["Amount"]
-        except zeep.exceptions.ValidationError:
+        except (IndexError, zeep.exceptions.ValidationError):
             ground_rate_value = None
         return {"FEDEX_GROUND": ground_rate_value}
