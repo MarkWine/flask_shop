@@ -99,8 +99,8 @@ $(document).ready(function (){
 $(window).on('load', function (){
     console.log('loaded');
     $.ajax({
-        type: "POST",
-        url: "{{ url_for('cart.initial_shipping') }}",
+        type: "GET",
+        url: "{{ url_for('cart.cart_info') }}",
         success: function(response){
             {% for option in SHIPPING_OPTIONS %}
                 $("#shipping_{{ option }}").text(parseFloat(response.{{ option }}).toFixed(2));

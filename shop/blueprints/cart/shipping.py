@@ -50,12 +50,12 @@ default_origin = ShippingAddress(ORIGIN_ADDRESS or "98101")
 class DestinationAddress(ShippingAddress):
     origin_address: ShippingAddress = ShippingAddress("98101")
 
-    def get_shipengine(self, origin_address=default_origin, weight: int = 1):
+    def get_shipengine(self, origin_address=default_origin, weight: int = 1) -> dict:
         """
         Get rates from shipengine. Because of potential fees, this is avoided unless explicitly invoked
         :param origin_address: 'ShippingAddress'
         :param weight: int ounces
-        :return:
+        :return: rate dictionary
         """
         rate_url = "https://api.shipengine.com/v1/rates"
         headers = {"Content-type": "application/json", "api-key": SHIPENGINE_KEY}
@@ -92,16 +92,14 @@ class DestinationAddress(ShippingAddress):
         ]
         return rate_values
 
-    def request_usps_domestic(self, weight, origin_address=default_origin):
+    def _request_usps_domestic(self, weight, origin_address=default_origin):
         """
         Structure and send request for USPS rates
         :param weight: in oz
         :type origin_address: 'ShippingAddress'
         :return: Ordered Dict of services and rates
         """
-        print(self.postal_code)
-        print(weight)
-        print(origin_address.postal_code)
+        current_app.logger.info(weight)
         request_xml = ET.Element("RateV4Request")
         request_xml.attrib = {"USERID": str(USPS_USER_ID)}
 
@@ -128,14 +126,14 @@ class DestinationAddress(ShippingAddress):
         results = requests.post(url=USPS_PRODUCTION_URL, data=data_xml)
         return results
 
-    def get_usps_domestic(self, weight: int = 1):
+    def get_usps_domestic(self, weight: int = 1) -> dict:
         """
         Take result from usps api call and output rate data as dict
-        :return:
+        :return: rate dict
         """
         try:
             parsed_results = xmltodict.parse(
-                self.request_usps_domestic(weight).content
+                self._request_usps_domestic(weight).content
             )["RateV4Response"]["Package"]["Postage"]
             priority = next(
                 (
@@ -163,8 +161,8 @@ class DestinationAddress(ShippingAddress):
         """
         Get FedEx Rates using webservices
         :param origin_address: 'ShippingAddress'
-        :param weight:
-        :return:
+        :param weight: in ounces
+        :return: rate dict
         """
         fedex_client = zeep.Client(
             current_app.open_instance_resource("RateService_v24.wsdl")
@@ -181,7 +179,6 @@ class DestinationAddress(ShippingAddress):
                 "Address": {
                     "PostalCode": self.postal_code or 32703,
                     "CountryCode": self.country or "US",
-                    # "StateOrProvinceCode": self.state or "FL",
                 }
             },
             "RequestedPackageLineItems": {

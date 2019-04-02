@@ -33,7 +33,7 @@ def create_payment(cart):
             "transactions": [
                 {
                     "amount": {"total": str(cart.cart_total), "currency": "USD"},
-                    "description": "This is the payment transaction description.",
+                    "description": f"This is the payment for session {session.get('session_id', 'Unknown')}.",
                 }
             ],
         }

@@ -1,11 +1,4 @@
-from wtforms import (
-    BooleanField,
-    StringField,
-    SelectField,
-    PasswordField,
-    TextAreaField,
-    validators,
-)
+from wtforms import BooleanField, StringField, SelectField, validators
 from flask_wtf import FlaskForm
 
 
@@ -29,13 +22,11 @@ class CheckoutForm(FlaskForm):
     )
     billing_first = StringField("First Name", validators=[validators.InputRequired()])
     billing_last = StringField("Last Name", validators=[validators.Optional()])
-    billing_address = StringField(
-        "Address", validators=[validators.Length(min=1, max=35)]
-    )
+    billing_address = StringField("Address")
     billing_address_2 = StringField(
         "Address Line 2 (optional)", validators=[validators.Optional()]
     )
-    billing_city = StringField("City", validators=[validators.InputRequired()])
+    billing_city = StringField("City")
     billing_state = SelectField(
         "State/Province", choices=[("WA", "Washington", ("CA", "California"))]
     )
@@ -49,9 +40,7 @@ class CheckoutForm(FlaskForm):
     )
     shipping_first = StringField("First Name", validators=[validators.InputRequired()])
     shipping_last = StringField("Last Name", validators=[validators.Optional()])
-    shipping_address = StringField(
-        "Address", validators=[validators.Length(min=1, max=35)]
-    )
+    shipping_address = StringField("Address", validators=[validators.InputRequired()])
     shipping_address_2 = StringField(
         "Address Line 2 (optional)", validators=[validators.Optional()]
     )

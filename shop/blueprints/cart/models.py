@@ -49,7 +49,7 @@ class CartSession(db.Model):
         self.cart_created = datetime.now()
 
     @property
-    def shipping_address(self):
+    def shipping_address(self) -> DestinationAddress:
         shipping_address = DestinationAddress(
             postal_code=self.postal_code,
             name=self.name,
@@ -63,7 +63,7 @@ class CartSession(db.Model):
         )
         return shipping_address
 
-    def get_shipping_rates(self):
+    def get_shipping_rates(self) -> dict:
         all_carriers = set.union(
             *[option["services"] for option in SHIPPING_OPTIONS.values()]
         )
@@ -73,10 +73,8 @@ class CartSession(db.Model):
             rates.update(self.shipping_address.get_shipengine(weight=self.weight))
         if all_carriers & {"USPS_FIRST_CLASS", "USPS_PRIORITY"}:
             rates.update(self.shipping_address.get_usps_domestic(weight=self.weight))
-            current_app.logger.info("USPS Updated")
         if all_carriers & {"FEDEX_GROUND"}:
             rates.update(self.shipping_address.get_fedex_rates(weight=self.weight))
-        current_app.logger.info(str(rates))
         for option in SHIPPING_OPTIONS:
             try:
                 best_rate = min(
@@ -87,48 +85,52 @@ class CartSession(db.Model):
                     }.values()
                 )
                 session[option] = best_rate
-                current_app.logger.info(f"{rates}: {option}: {best_rate}")
             except ValueError:
-                return None
+                return {}
         return rates
 
     @property
-    def weight(self):
-        return sum(item.product.weight * item.quantity for item in self.cart_items)
+    def weight(self) -> int:
+        """
+        Minimum weight is set to one ounce if no items in cart
+        :return:  int
+        """
+        return sum(item.product.weight * item.quantity for item in self.cart_items) or 1
 
     @property
-    def shipping_rates(self):
-        current_app.logger.info(f"weight: {self.weight}")
+    def shipping_rates(self) -> dict:
         if not session.get("rates_updated"):
             self.get_shipping_rates()
         try:
-            current_app.logger.info(f"session rates?: {str(session)}")
             rates = {
                 k: Decimal(session[k]) + v["handling"]
                 for k, v in SHIPPING_OPTIONS.items()
             }
         except KeyError:
-            current_app.logger.info(f"no session rates: {str(session)}")
+            current_app.logger.error(f"No/Invalid session rates: {str(session)}")
             rates = {
                 k: v["default"] + v["handling"] for k, v in SHIPPING_OPTIONS.items()
             }
-        current_app.logger.info(f"rates: {str(rates)}")
         return rates
 
     @property
-    def shipping_cost(self):
+    def shipping_cost(self) -> Decimal:
         return self.shipping_rates[self.shipping_selected or "Standard"]
 
     @property
-    def subtotal(self):
+    def subtotal(self) -> Decimal:
         return sum([item.subtotal for item in self.cart_items])
 
     @property
-    def total(self):
+    def total(self) -> Decimal:
         return self.subtotal + self.shipping_cost
 
     @property
     def json(self):
+        """
+        convert cart into json containing cart information for api calls
+        :return: flask.wrappers.Response
+        """
         cart_json = {
             "shipping_selected": str(self.shipping_selected),
             "shipping_cost": str(self.shipping_cost),
@@ -139,12 +141,12 @@ class CartSession(db.Model):
             cart_json[option] = str(self.shipping_rates[option])
         return jsonify(cart_json)
 
-    def convert_cart(self, payment, address=None):
+    def convert_cart(self, payment, address=None) -> Order:
         """
         Turn a cart into an order based on payment information
         :param payment: OrderPayment
         :param address: ShippingAddress
-        :return:
+        :return: Order
         """
         if not address:
             address = self.shipping_address
@@ -170,13 +172,14 @@ class CartSession(db.Model):
             db.session.rollback()
         return order
 
-    def convert_amazon_order(self, order_response):
+    def convert_amazon_order(self, order_response) -> Order:
         try:
             confirm_result = json.loads(order_response.to_json())[
                 "GetOrderReferenceDetailsResponse"
             ]["GetOrderReferenceDetailsResult"]["OrderReferenceDetails"]
-        except KeyError:
-            return "Order Not Confirmed by Amazon"
+        except KeyError as e:
+            current_app.logger.error(f"Incomplete amazon order response: {e}")
+            return Order()
         address = confirm_result["Destination"]["PhysicalDestination"]
         shipping_address = ShippingAddress(
             postal_code=address["PostalCode"],
@@ -192,6 +195,28 @@ class CartSession(db.Model):
             payment_type="PayWithAmazon",
             buyer_first=confirm_result["Buyer"]["Name"],
             payment_total=confirm_result["OrderTotal"]["Amount"],
+        )
+        order = self.convert_cart(payment=payment, address=shipping_address)
+        return order
+
+    def convert_paypal_order(self, paypal_payment) -> Order:
+        paypal_address = paypal_payment["transactions"][0]["item_list"][
+            "shipping_address"
+        ]
+        shipping_address = ShippingAddress(
+            postal_code=paypal_address["postal_code"],
+            name=paypal_address["recipient_name"],
+            address_line1=paypal_address["line1"],
+            address_line2=paypal_address["line2"],
+            city=paypal_address["city"],
+            state=paypal_address["state"],
+            country=paypal_address["country_code"],
+        )
+        payment = OrderPayment(
+            id=paypal_payment["transactions"][0]["related_resources"][0]["sale"]["id"],
+            payment_type="PayPal",
+            buyer_first=paypal_payment["payer"]["payer_info"],
+            payment_total=paypal_payment["payer"]["payer_info"],
         )
         order = self.convert_cart(payment=payment, address=shipping_address)
         return order
