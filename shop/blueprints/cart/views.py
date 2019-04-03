@@ -14,7 +14,7 @@ import paypalrestsdk
 
 from shop import db
 from .models import CartSession, CartItem, SHIPPING_OPTIONS
-from .amazon import client, AMAZON_CLIENT_ID, MWS_ACCESS_KEY
+from .amazon import client, AMAZON_CLIENT_ID, MWS_ACCESS_KEY, MERCHANT_ID
 from .paypal import create_payment
 from .utils.example_products import make_example_cart
 from ..orders.models import Order
@@ -98,6 +98,12 @@ def remove_item():
     return cart.json
 
 
+@cart_blueprint.route("/checkout_amazon")
+def amazon_checkout():
+    session['access_token'] = request.args.get('access_token')
+    return render_template('to_delete.html')
+
+
 @cart_blueprint.route("/api/create_paypal_payment", methods=["POST"])
 def create_paypal_payment():
     """
@@ -132,7 +138,7 @@ def execute_paypal_payment():
     return jsonify(dict(redirect=url_for("cart.thank_you_page", order_id=order.id)))
 
 
-@cart_blueprint.route("/api/amazon/get_details/", methods=["GET"])
+@cart_blueprint.route("/api/amazon/get_details/", methods=["POST"])
 def get_amazon_details():
     """
     Sets up Amazon payment.
@@ -192,6 +198,7 @@ def clear_session():
 def cart_credentials():
     return {
         "MWS_ACCESS_KEY": MWS_ACCESS_KEY,
+        "MERCHANT_ID": MERCHANT_ID,
         "AMAZON_CLIENT_ID": AMAZON_CLIENT_ID,
         "SHIPPING_OPTIONS": SHIPPING_OPTIONS,
     }

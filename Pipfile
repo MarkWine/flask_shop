@@ -25,6 +25,7 @@ zeep = "*"
 sqlalchemy-utils = "*"
 simplejson = "*"
 psycopg2-binary = "*"
+pyopenssl = "*"
 
 [requires]
 python_version = "3.7"

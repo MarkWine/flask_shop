@@ -10,6 +10,8 @@
     };
 </script>
 <script async="async" src="https://static-na.payments-amazon.com/OffAmazonPayments/us/sandbox/js/Widgets.js"></script>
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0, maximum-scale=1.0"/>
 {% endblock head %}
 {% block body %}
 {% if not cart_session %}
@@ -203,10 +205,17 @@ var authRequest;
         color: "Gold",
         authorization: function () {
             loginOptions = {scope: "profile postal_code payments:widget payments:shipping_address", popup: true};
-            authRequest = amazon.Login.authorize(loginOptions, "{{ url_for('cart.get_amazon_details') }}");
+            authRequest = amazon.Login.authorize(loginOptions, "{{ url_for('cart.amazon_checkout') }}");
         }
     });
 }
 </script>
+<a href="{{ url_for('cart.cart_page') }}" id='Logout'>Logout of Amazon</a>
+<script type="text/javascript">
+  document.getElementById('Logout').onclick = function() {
+    amazon.Login.logout();
+  };
+</script>
+
 {% endif %}
 {% endblock body %}
