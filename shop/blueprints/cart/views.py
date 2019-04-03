@@ -132,7 +132,7 @@ def execute_paypal_payment():
     return jsonify(dict(redirect=url_for("cart.thank_you_page", order_id=order.id)))
 
 
-@cart_blueprint.route("/api/amazon/get_details/", methods=["POST"])
+@cart_blueprint.route("/api/amazon/get_details/", methods=["GET"])
 def get_amazon_details():
     """
     Sets up Amazon payment.
