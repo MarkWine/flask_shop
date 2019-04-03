@@ -50,7 +50,7 @@ default_origin = ShippingAddress(ORIGIN_ADDRESS or "98101")
 class DestinationAddress(ShippingAddress):
     origin_address: ShippingAddress = ShippingAddress("98101")
 
-    def get_shipengine(self, origin_address=default_origin, weight: int = 1) -> dict:
+    def get_shipengine(self, origin_address=default_origin, weight: int = 1):
         """
         Get rates from shipengine. Because of potential fees, this is avoided unless explicitly invoked
         :param origin_address: 'ShippingAddress'

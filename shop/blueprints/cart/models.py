@@ -163,8 +163,13 @@ class CartSession(db.Model):
         )
         db.session.add(order)
         order_items = []
+        current_app.logger.info(str(self.cart_items))
         for item in self.cart_items:
-            order_items.append(OrderItem(item))
+            order_items.append(OrderItem(order_id=order.id,
+                                         product_id=item.product_id,
+                                         product_variant=item.product_variant,
+                                         item_quantity=item.quantity,
+                                         item_subtotal=item.subtotal))
         db.session.bulk_save_objects(order_items)
         try:
             db.session.commit()
@@ -207,7 +212,7 @@ class CartSession(db.Model):
             postal_code=paypal_address["postal_code"],
             name=paypal_address["recipient_name"],
             address_line1=paypal_address["line1"],
-            address_line2=paypal_address["line2"],
+            # address_line2=paypal_address["line2"],
             city=paypal_address["city"],
             state=paypal_address["state"],
             country=paypal_address["country_code"],
@@ -230,6 +235,9 @@ class CartItem(db.Model):
     product_variant = db.Column(db.Integer, db.ForeignKey("product_variants.id"))
     quantity = db.Column(db.Integer)
 
+    product = db.relationship("Product")
+    cart = db.relationship("CartSession", backref=db.backref("cart_items"))
+
     @property
     def unit_price(self):
         return self.product.price
@@ -237,9 +245,6 @@ class CartItem(db.Model):
     @property
     def subtotal(self):
         return self.unit_price * Decimal(self.quantity)
-
-    product = db.relationship("Product")
-    cart = db.relationship("CartSession", backref=db.backref("cart_items"))
 
 
 @dataclass

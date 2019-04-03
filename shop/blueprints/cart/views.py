@@ -1,4 +1,3 @@
-import json
 import os
 
 from flask import (
@@ -16,7 +15,7 @@ import paypalrestsdk
 from shop import db
 from .models import CartSession, CartItem, SHIPPING_OPTIONS
 from .amazon import client, AMAZON_CLIENT_ID, MWS_ACCESS_KEY
-from .paypal import create_payment, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET
+from .paypal import create_payment
 from .utils.example_products import make_example_cart
 from ..orders.models import Order
 
@@ -38,6 +37,7 @@ def cart_page():
         session["session_id"] = cart_session.id
     if not cart_session.cart_items and current_app.config.get("NO_PRODUCT"):
         make_example_cart(session["session_id"])
+    current_app.logger.info(f"cart weight: {cart_session.weight}")
     return render_template("cart.html", cart_session=cart_session)
 
 
@@ -100,22 +100,35 @@ def remove_item():
 
 @cart_blueprint.route("/api/create_paypal_payment", methods=["POST"])
 def create_paypal_payment():
+    """
+    Set up paypal payment based on cart
+    :return: json payment info
+    """
     cart = CartSession.query.get(session["session_id"])
     payment = create_payment(cart)
-    if payment.create():
-        return jsonify(payment.to_dict())
-    else:
-        return payment.error
+    current_app.logger.info(str(payment))
+    try:
+        if payment.create():
+            return jsonify(payment.to_dict())
+        else:
+            return jsonify(payment.error)
+    except paypalrestsdk.exceptions.UnauthorizedAccess:
+        return jsonify({"error": "Unauthorized Access"})
 
 
 @cart_blueprint.route("/api/execute_paypal_payment", methods=["POST"])
 def execute_paypal_payment():
+    """
+    confirm paypal payment and create order
+    :return: redirect to thank you page
+    """
     payment = paypalrestsdk.Payment.find(request.form["paymentID"])
     if payment.execute({"payer_id": payment["payer"]["payer_info"]["payer_id"]}):
         cart_session = CartSession.query.get(session["session_id"])
+        current_app.logger.info(f"cart items: {cart_session.cart_items}")
         order = cart_session.convert_paypal_order(payment)
     else:
-        return payment.error
+        return jsonify(payment.error)
     return jsonify(dict(redirect=url_for("cart.thank_you_page", order_id=order.id)))
 
 
@@ -135,6 +148,10 @@ def get_amazon_details():
 
 @cart_blueprint.route("/api/amazon/confirm/", methods=["POST"])
 def confirm_amazon_order():
+    """
+    Confirm Amazon payment and create order
+    :return: redirect to thank you page
+    """
     order_reference_id = session["orderReferenceId"]
     cart_session = CartSession.query.get(session["session_id"])
     set_response = client.set_order_reference_details(
@@ -162,7 +179,6 @@ def confirm_amazon_order():
         transaction_timeout=0,
         capture_now=True,
     )
-    current_app.logger.info(f"Amazon Authorization Response: {str(auth_response)}")
     return redirect(url_for("cart.thank_you_page", order=order.id), code=307)
 
 

@@ -27,12 +27,12 @@ def create_payment(cart):
             "intent": "sale",
             "payer": {"payment_method": "paypal"},
             "redirect_urls": {
-                "return_url": url_for("thank_you_page"),
-                "cancel_url": url_for("cart_page"),
+                "return_url": url_for("cart.thank_you_page"),
+                "cancel_url": url_for("cart.cart_page"),
             },
             "transactions": [
                 {
-                    "amount": {"total": str(cart.cart_total), "currency": "USD"},
+                    "amount": {"total": str(round(cart.total, 2)), "currency": "USD"},
                     "description": f"This is the payment for session {session.get('session_id', 'Unknown')}.",
                 }
             ],

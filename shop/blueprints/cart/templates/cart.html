@@ -21,7 +21,7 @@
 
     <tr id="{{ item.item_id }}_row">
         <td>{{ item.product.name | safe }}</td>
-                                <td width="50" class="tableunderline">&#x0024;{{ item.subtotal }}
+                                <td width="50" class="tableunderline">${{ item.subtotal }}
         </td>
         <td width="30" align="right" class="table"><input type=text size=3
                                                                    name="{{ item.id }}_quantity"
@@ -180,11 +180,13 @@ paypal.Button.render({
     env: "sandbox", // "production",
     payment: function (data, actions) {
         return paypal.request.post("{{ url_for('cart.create_paypal_payment') }}").then(function (res) {
+            console.log(res);
             return res.id;
         });
     },
     onAuthorize: function (data, actions) {
         return paypal.request.post("{{ url_for('cart.execute_paypal_payment') }}", data).then(function (res) {
+            console.log(res);
             return window.location.replace(res.redirect);
         });
     }
@@ -201,7 +203,7 @@ var authRequest;
         color: "Gold",
         authorization: function () {
             loginOptions = {scope: "profile postal_code payments:widget payments:shipping_address", popup: true};
-            authRequest = amazon.Login.authorize(loginOptions, "/amzncheckout");
+            authRequest = amazon.Login.authorize(loginOptions, "{{ url_for('cart.get_amazon_details') }}");
         }
     });
 }
