@@ -101,7 +101,7 @@ def remove_item():
 @cart_blueprint.route("/checkout_amazon")
 def amazon_checkout():
     session['access_token'] = request.args.get('access_token')
-    return render_template('to_delete.html')
+    return render_template('amazon_checkout.html')
 
 
 @cart_blueprint.route("/api/create_paypal_payment", methods=["POST"])
