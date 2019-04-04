@@ -40,14 +40,6 @@ class Order(db.Model):
             self.ship_state = address.state
             self.ship_country = address.country
 
-    @property
-    def subtotal(self):
-        return sum([item.item_subtotal for item in self.cart_items])
-
-    @property
-    def order_total(self):
-        return self.order_subtotal + self.shipping_cost
-
 
 class OrderItem(db.Model):
     __tablename__ = "order_items"

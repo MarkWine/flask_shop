@@ -168,7 +168,7 @@ class CartSession(db.Model):
             order_items.append(OrderItem(order_id=order.id,
                                          product_id=item.product_id,
                                          product_variant=item.product_variant,
-                                         item_quantity=item.quantity,
+                                         quantity=item.quantity,
                                          item_subtotal=item.subtotal))
         db.session.bulk_save_objects(order_items)
         try:

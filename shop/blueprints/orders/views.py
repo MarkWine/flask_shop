@@ -1,8 +1,6 @@
 from flask import Blueprint
 from flask_security import roles_accepted, login_required
 
-from .models import Order, OrderItem
-
 order_blueprint: Blueprint = Blueprint(name="order", import_name=__name__)
 
 

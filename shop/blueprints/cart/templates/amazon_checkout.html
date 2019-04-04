@@ -16,8 +16,8 @@ content="width=device-width,initial-scale=1.0, maximum-scale=1.0"/>
 {% endblock head %}
 
 {% block body %}
-<div id="addressBookWidgetDiv">
-</div>
+        <div id="addressBookWidgetDiv" style="width:400px; height:240px; display:inline-block;"></div>
+
 <script>
 
   addressBookWidget = new OffAmazonPayments.Widgets.AddressBook({
@@ -69,7 +69,7 @@ content="width=device-width,initial-scale=1.0, maximum-scale=1.0"/>
   addressBookWidget.bind("addressBookWidgetDiv");
 
 </script>
-<div id="walletWidgetDiv">
+<div id="walletWidgetDiv" style="width:400px; height:240px; display:inline-block;">
 </div>
 <script>
           walletWidget = new OffAmazonPayments.Widgets.Wallet({
@@ -86,4 +86,9 @@ content="width=device-width,initial-scale=1.0, maximum-scale=1.0"/>
 
         walletWidget.bind("walletWidgetDiv");
 </script>
+
+        <form class="form-horizontal" style="margin-top:40px;" role="form" method="post"
+              action="{{ url_for('cart.confirm_amazon_order') }}">
+            <button id="confirm-order" class="button-primary" type="submit">Confirm Order</button>
+        </form>
 {% endblock body %}

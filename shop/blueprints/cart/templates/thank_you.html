@@ -1,4 +1,10 @@
 {% extends "main.html" %}
 {% block body %}
-Thanks for your Order!
+Thank you for your Order! <br/>
+{{ order.buyer_first_name }}
+Your items are:
+{% for item in order.order_items %}
+    {{ item.product.name }} <br/>
+{% endfor %}
+Total: {{ order.payment_total }}
 {% endblock body %}

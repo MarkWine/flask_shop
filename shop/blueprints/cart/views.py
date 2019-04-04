@@ -46,9 +46,12 @@ def checkout():
     return render_template("checkout.html")
 
 
-@cart_blueprint.route("/thank_you")
+@cart_blueprint.route("/thank_you", methods=["GET", "POST"])
 def thank_you_page():
+    # TODO: Add security
+    current_app.logger.info(f"The order is: {request.args.get('order_id')}")
     order = Order.query.get(request.args.get("order_id"))
+    current_app.logger.info(order.order_items)
     return render_template("thank_you.html", order=order)
 
 
