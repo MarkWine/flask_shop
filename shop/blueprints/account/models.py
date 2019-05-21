@@ -11,6 +11,8 @@ class AccountUser(db.Model, UserMixin):
     first_name = db.Column(db.String)
     last_name = db.Column(db.String)
 
+    account_roles = db.relationship('AccountRole', secondary='roles_users')
+
 
 class AccountRole(db.Model, RoleMixin):
     __tablename__ = "account_roles"
@@ -25,3 +27,11 @@ class RoleUsers(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("account_users.id"))
     role_id = db.Column(db.Integer, db.ForeignKey("account_roles.id"))
+
+
+class WishList(db.Model):
+    __tablename__ = "wishlist_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("account_users.id"))
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"))

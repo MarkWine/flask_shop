@@ -162,6 +162,11 @@ class CartSession(db.Model):
             address=address,
         )
         db.session.add(order)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            return Order()
         order_items = []
         current_app.logger.info(str(self.cart_items))
         for item in self.cart_items:
@@ -205,14 +210,14 @@ class CartSession(db.Model):
         return order
 
     def convert_paypal_order(self, paypal_payment) -> Order:
-        paypal_address = paypal_payment["transactions"][0]["item_list"][
+        paypal_address = paypal_payment.to_dict()["transactions"][0]["item_list"][
             "shipping_address"
         ]
         shipping_address = ShippingAddress(
             postal_code=paypal_address["postal_code"],
             name=paypal_address["recipient_name"],
             address_line1=paypal_address["line1"],
-            # address_line2=paypal_address["line2"],
+            address_line2=paypal_address.get("line2"),
             city=paypal_address["city"],
             state=paypal_address["state"],
             country=paypal_address["country_code"],
@@ -237,6 +242,12 @@ class CartItem(db.Model):
 
     product = db.relationship("Product")
     cart = db.relationship("CartSession", backref=db.backref("cart_items"))
+
+    def __init__(self, cart_id, product_id, product_variant=None, quantity=1):
+        self.cart_id = cart_id
+        self.product_id = product_id
+        self.product_variant = product_variant
+        self.quantity = quantity
 
     @property
     def unit_price(self):

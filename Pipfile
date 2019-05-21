@@ -26,6 +26,7 @@ sqlalchemy-utils = "*"
 simplejson = "*"
 psycopg2-binary = "*"
 pyopenssl = "*"
+pytest-flask-sqlalchemy = "*"
 
 [requires]
 python_version = "3.7"
